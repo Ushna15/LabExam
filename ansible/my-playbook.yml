@@ -1,0 +1,75 @@
+---
+- name: Setup EC2 Web Server
+  hosts: ec2
+  become: true
+  tasks:
+
+    - name: Update all system packages
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+
+    - name: Ensure curl-minimal is installed
+      ansible.builtin.yum:
+        name: curl-minimal
+        state: present
+
+    - name: Stop and disable nginx if installed
+      ansible.builtin.systemd:
+        name: nginx
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Remove nginx if installed
+      ansible.builtin.yum:
+        name: nginx
+        state: absent
+      ignore_errors: yes
+
+    - name: Install Apache HTTPD
+      ansible.builtin.yum:
+        name: httpd
+        state: present
+
+    - name: Start and enable httpd service
+      ansible.builtin.systemd:
+        name: httpd
+        state: started
+        enabled: yes
+
+    - name: Get IMDSv2 token
+      ansible.builtin.uri:
+        url: http://169.254.169.254/latest/api/token
+        method: PUT
+        headers:
+          X-aws-ec2-metadata-token-ttl-seconds: "21600"
+        return_content: yes
+      register: imds_token
+
+    - name: Fetch public IPv4 using IMDSv2
+      ansible.builtin.uri:
+        url: http://169.254.169.254/latest/meta-data/public-ipv4
+        method: GET
+        headers:
+          X-aws-ec2-metadata-token: "{{ imds_token.content }}"
+        return_content: yes
+      register: public_ip
+
+    - name: Fetch public hostname using IMDSv2
+      ansible.builtin.uri:
+        url: http://169.254.169.254/latest/meta-data/public-hostname
+        method: GET
+        headers:
+          X-aws-ec2-metadata-token: "{{ imds_token.content }}"
+        return_content: yes
+      register: public_hostname
+
+    - name: Print public IP
+      ansible.builtin.debug:
+        msg: "Public IP: {{ public_ip.content }}"
+
+    - name: Restart httpd
+      ansible.builtin.systemd:
+        name: httpd
+        state: restarted
