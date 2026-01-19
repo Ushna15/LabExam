@@ -1,0 +1,8 @@
+.aws/
+~/.aws/
+.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.pem
+.terraform.lock.hcl
